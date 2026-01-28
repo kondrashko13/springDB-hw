@@ -8,7 +8,8 @@ services:
     ports:
       - '5432:5432'
     volumes:
-      - postgres_data:/var/lib/postgresql/main
+    - postgres_data:/var/lib/postgresql/main
 
 volumes:
   postgres_data:
+    driver: local
