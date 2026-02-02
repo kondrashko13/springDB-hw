@@ -17,12 +17,12 @@ public class CatController {
 
     @GetMapping
     public List<Cat> getAllCats() {
-        return catService.getAllCats();
+        return catService.getAll();
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<Cat> getCatById(@PathVariable Long id) {
-        Cat cat = catService.getCatById(id);
+        Cat cat = catService.getById(id);
         if (cat == null) {
             return ResponseEntity.notFound().build();
         }
@@ -31,20 +31,20 @@ public class CatController {
 
     @PostMapping
     public ResponseEntity<String> createCat(@RequestBody Cat cat) {
-        catService.createCat(cat);
+        catService.create(cat);
         return ResponseEntity.ok("Cat created!");
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<String> updateCat(@PathVariable Long id, @RequestBody Cat cat) {
         cat.setId(id);
-        catService.updateCat(cat);
+        catService.update(cat);
         return ResponseEntity.ok("Cat updated!");
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteCat(@PathVariable Long id) {
-        catService.deleteCat(id);
+        catService.delete(id);
         return ResponseEntity.ok("Cat deleted!");
     }
 }
