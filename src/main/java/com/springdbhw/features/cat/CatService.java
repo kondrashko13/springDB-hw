@@ -7,29 +7,29 @@ import java.util.List;
 @Service
 public class CatService {
 
-    private final CatRepository catRepository;
+    private final CatEntityManagerDao dao;
 
-    public CatService(CatRepository catRepository) {
-        this.catRepository = catRepository;
+    public CatService(CatEntityManagerDao dao) {
+        this.dao = dao;
     }
 
-    public List<Cat> getAllCats() {
-        return catRepository.findAll();
+    public List<Cat> getAll() {
+        return dao.findAll();
     }
 
-    public Cat getCatById(Long id) {
-        return catRepository.findById(id);
+    public Cat getById(Long id) {
+        return dao.find(id);
     }
 
-    public void createCat(Cat cat) {
-        catRepository.save(cat);
+    public void create(Cat cat) {
+        dao.persist(cat);
     }
 
-    public void updateCat(Cat cat) {
-        catRepository.update(cat);
+    public void update(Cat cat) {
+        dao.merge(cat);
     }
 
-    public void deleteCat(Long id) {
-        catRepository.delete(id);
+    public void delete(Long id) {
+        dao.remove(id);
     }
 }
