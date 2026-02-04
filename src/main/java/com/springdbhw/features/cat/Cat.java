@@ -10,8 +10,46 @@ import lombok.*;
 @NoArgsConstructor
 @Getter
 @Setter
+@Builder
 @Entity
-@Table(name = "cat_merged")
+@NamedQuery(
+        name = "Cat.deleteDead",
+        query = "DELETE FROM Cat c WHERE c.alive = false"
+)
+@NamedQuery(
+        name = "Cat.upAgeIfAlive",
+        query = "UPDATE Cat c SET c.age = c.age + 1 WHERE c.alive = true"
+)
+@NamedQuery(
+        name = "Cat.findOlderThanAverage",
+        query = """
+                    SELECT c
+                    FROM Cat c
+                    WHERE c.age > (
+                        SELECT AVG(c2.age)
+                        FROM Cat c2
+                    )
+                """
+)
+@NamedQuery(
+        name = "Cat.countByBreed",
+        query = """
+                    SELECT c.age, COUNT(c)
+                    FROM Cat c
+                    GROUP BY c.breed
+                    ORDER BY c.breed
+                """
+)
+@NamedQuery(
+        name = "Cat.findByOwnerName",
+        query = """
+                    SELECT c
+                    FROM Cat c
+                    JOIN c.owner o
+                    WHERE o.name LIKE :ownerName
+                """
+)
+@Table(name = "cats")
 public class Cat {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -22,11 +60,18 @@ public class Cat {
 
     @NotNull
     @Min(0)
-    private int age;
+    @Builder.Default
+    private int age = 0;
 
-    @Column(name = "average_age")
-    private double averageAge;
+    @NotNull
+    @Builder.Default
+    private boolean alive = true;
 
-    @Column(name = "total_cats")
-    private int totalCats;
+    @NotNull
+    @Builder.Default
+    private Breed breed = Breed.CUTE;
+
+    @ManyToOne
+    private Owner owner;
 }
+
