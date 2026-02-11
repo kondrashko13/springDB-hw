@@ -4,28 +4,35 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.*;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Path;
 import jakarta.transaction.Transactional;
+
 import org.jooq.*;
 import org.jooq.Record;
 import org.jooq.impl.DSL;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
+import java.math.BigDecimal;
+import java.util.*;
+import java.util.stream.Collectors;
 
-import static org.jooq.impl.DSL.field;
-import static org.jooq.impl.DSL.table;
-
-import org.jooq.Table;
+import static org.jooq.impl.DSL.*;
 
 @Component
 @Transactional
 public class AdvancedCatService {
 
-    private static final String table = Cat.class.getAnnotation(jakarta.persistence.Table.class).name();
-
     @PersistenceContext
     private EntityManager em;
+
+    private static final Table<?> CATS = table("cats");
+    private static final Table<?> OWNERS = table("owners");
+
+    private static final Field<Boolean> ALIVE = field("alive", Boolean.class);
+    private static final Field<Integer> AGE = field("age", Integer.class);
+    private static final Field<Integer> BREED = field("breed", Integer.class);
+    private static final Field<String> NAME = field("name", String.class);
 
     private final DSLContext ctx;
 
@@ -54,13 +61,13 @@ public class AdvancedCatService {
     }
 
     public void deleteDeadNative() {
-        String sql = "DELETE FROM " + table + " WHERE alive = false";
+        String sql = "DELETE FROM cats WHERE alive = false";
         em.createNativeQuery(sql).executeUpdate();
     }
 
     public void deleteDeadJooq() {
-        ctx.deleteFrom(table(table))
-                .where(field("alive").eq(false))
+        ctx.deleteFrom(CATS)
+                .where(ALIVE.isFalse())
                 .execute();
     }
 
@@ -89,14 +96,14 @@ public class AdvancedCatService {
 
     public void upAgeIfAliveNative() {
         em.createNativeQuery(
-                "UPDATE " + table + " SET age = age + 1 WHERE alive = true"
+                "UPDATE cats SET age = age + 1 WHERE alive = true"
         ).executeUpdate();
     }
 
     public void upAgeIfAliveJooq() {
-        ctx.update(table(table))
-                .set(field("age", Integer.class), field("age", Integer.class).plus(1))
-                .where(field("alive").isTrue())
+        ctx.update(CATS)
+                .set(AGE, AGE.plus(1))
+                .where(ALIVE.isTrue())
                 .execute();
     }
 
@@ -132,6 +139,7 @@ public class AdvancedCatService {
         return em.createQuery(cq).getResultList();
     }
 
+    @SuppressWarnings("unchecked")
     public List<Cat> findOlderThanAverageNative() {
         String sql = """
                     SELECT *
@@ -141,24 +149,29 @@ public class AdvancedCatService {
                         FROM cats
                     )
                 """;
-        TypedQuery<Cat> query = em.createQuery(sql, Cat.class);
-        return query.getResultList();
+        return em.createNativeQuery(sql, Cat.class).getResultList();
     }
 
     public List<Cat> findOlderThanAverageJooq() {
-        int avgAge = DSL
-                .select(DSL.avg(field("age", Integer.class)))
-                .from(table(table)).execute();
+        BigDecimal avgAgeBD = ctx
+                .select(DSL.avg(AGE))
+                .from(CATS)
+                .fetchOne(DSL.avg(AGE));
 
-        return ctx.selectFrom(table(table))
-                .where(field("age", Integer.class).gt(avgAge))
+        if (avgAgeBD == null) {
+            return List.of();
+        }
+        int avgAge = avgAgeBD.intValue();
+
+        return ctx.selectFrom(CATS)
+                .where(AGE.gt(avgAge))
                 .fetchInto(Cat.class);
     }
 
     //Using aggregation in result---------------------------------------------------------------------------------------
     public List<Object[]> countByBreedJPQL() {
         String jpql = """
-                    SELECT c.age, COUNT(c)
+                    SELECT c.breed, COUNT(c)
                     FROM Cat c
                     GROUP BY c.breed
                     ORDER BY c.breed
@@ -186,90 +199,208 @@ public class AdvancedCatService {
         return em.createQuery(cq).getResultList();
     }
 
+    @SuppressWarnings("unchecked")
     public List<Object[]> countByBreedNative() {
         String sql = """
-                    SELECT c.breed, COUNT(*)
+                    SELECT c.breed, COUNT(c)
                     FROM cats c
                     GROUP BY c.breed
                     ORDER BY c.breed
                 """;
-        TypedQuery<Object[]> query = em.createQuery(sql, Object[].class);
+        return em.createNativeQuery(sql, Object[].class).getResultList();
+    }
+
+    public List<Object[]> countCatsByAgeJooq() {
+        return ctx.select(BREED, DSL.count())
+                .from(CATS)
+                .groupBy(BREED)
+                .orderBy(BREED)
+                .fetchInto(Object[].class);
+    }
+
+    //Join search-------------------------------------------------------------------------------------------------------
+    public Map<Owner, List<Cat>> findCatsGroupedByOwnerJPQL() {
+        String jpql = """
+                SELECT c
+                FROM Cat c
+                JOIN FETCH c.owner
+                """;
+        List<Cat> cats = em.createQuery(jpql, Cat.class).getResultList();
+        return cats.stream().collect(Collectors.groupingBy(Cat::getOwner));
+    }
+
+    public Map<Owner, List<Cat>> findCatsGroupedByOwnerNamedQuery() {
+        List<Cat> cats = em.createNamedQuery("Cat.findAllWithOwner", Cat.class).getResultList();
+        return cats.stream().collect(Collectors.groupingBy(Cat::getOwner));
+    }
+
+    public Map<Owner, List<Cat>> findCatsGroupedByOwnerCriteria() {
+        CriteriaBuilder cb = em.getCriteriaBuilder();
+        CriteriaQuery<Cat> query = cb.createQuery(Cat.class);
+        Root<Cat> catRoot = query.from(Cat.class);
+
+        catRoot.fetch("owner", JoinType.INNER);
+
+        query.select(catRoot);
+
+        List<Cat> cats = em.createQuery(query).getResultList();
+
+        return cats.stream().collect(Collectors.groupingBy(Cat::getOwner));
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<Owner, List<Cat>> findCatsGroupedByOwnerNative() {
+        String sql = """
+                SELECT c.*
+                FROM cats c
+                JOIN owners o ON c.owner_id = o.id
+                """;
+        List<Cat> cats = em.createNativeQuery(sql, Cat.class).getResultList();
+
+        return cats.stream().collect(Collectors.groupingBy(Cat::getOwner));
+    }
+
+    public Map<Owner, List<Cat>> findCatsGroupedByOwnerJOOQ() {
+        Table<Record> cats = table("cats");
+        Table<Record> owners = table("owners");
+
+        Field<Long> catId = field(name("cats", "id"), Long.class);
+        Field<String> catName = field(name("cats", "name"), String.class);
+        Field<Integer> catAge = field(name("cats", "age"), Integer.class);
+        Field<Long> catOwnerId = field(name("cats", "owner_id"), Long.class);
+        Field<Integer> catBreed = field(name("cats", "breed"), Integer.class);
+
+        Field<Long> ownerId = field(name("owners", "id"), Long.class);
+        Field<String> ownerName = field(name("owners", "name"), String.class);
+
+        Result<Record7<Long, String, Long, Long, String, Integer, Integer>> records = ctx
+                .select(catId, catName, catOwnerId, ownerId, ownerName, catAge, catBreed)
+                .from(cats)
+                .join(owners)
+                .on(catOwnerId.eq(ownerId))
+                .fetch();
+
+        List<Cat> catsList = new ArrayList<>();
+        Map<Long, Owner> ownersMap = new HashMap<>();
+
+        for (Record r : records) {
+            Cat cat = new Cat();
+            cat.setId(r.get(catId));
+            cat.setName(r.get(catName));
+            cat.setAge(r.get(catAge));
+            cat.setBreed(Breed.toBreed(r.get(catBreed)));
+
+            Long oId = r.get(ownerId);
+            Owner owner = ownersMap.get(oId);
+            if (owner == null) {
+                owner = new Owner();
+                owner.setId(oId);
+                owner.setName(r.get(ownerName));
+                ownersMap.put(oId, owner);
+            }
+
+            cat.setOwner(owner);
+            catsList.add(cat);
+        }
+        return catsList.stream().collect(Collectors.groupingBy(Cat::getOwner));
+    }
+
+    //Parametrised search-------------------------------------------------------------------------------------------------------
+    public List<Cat> findDynamicallyJPQL(String name, Integer age) {
+        StringBuilder jpql = new StringBuilder("SELECT c FROM Cat c WHERE 1=1");
+
+        if (name != null) {
+            jpql.append(" AND LOWER(c.name) LIKE LOWER(CONCAT(:name, '%'))");
+        }
+
+        if (age != null) {
+            jpql.append(" AND c.age > :age");
+        }
+
+        TypedQuery<Cat> query = em.createQuery(jpql.toString(), Cat.class);
+
+        if (name != null) {
+            query.setParameter("name", name);
+        }
+
+        if (age != null) {
+            query.setParameter("age", age);
+        }
+
         return query.getResultList();
     }
 
-    public Result<Record2<Integer, Integer>> countCatsByAgeJooq() {
-        Field<Integer> breed = field("breed", Integer.class);
-
-        return ctx.select(breed, DSL.count())
-                .from(table(table))
-                .groupBy(breed)
-                .orderBy(breed)
-                .fetch();
-    }
-
-    //JOIN search-------------------------------------------------------------------------------------------------------
-    public List<Cat> findByOwnerJPQL(String name) {
-        String jpql = """
-                    SELECT c
-                    FROM Cat c
-                    JOIN c.owner o
-                    WHERE o.name LIKE :ownerName
-                """;
-
-        return em.createQuery(jpql, Cat.class)
-                .setParameter("ownerName", name + "%")
-                .getResultList();
-    }
-
-    public List<Cat> findByOwnerNamedQuery(String name) {
-        return em.createNamedQuery("Cat.findByOwnerName", Cat.class)
-                .setParameter("ownerName", name + "%")
-                .getResultList();
-    }
-
-    public List<Cat> findByOwnerCriteria(String name) {
+    public List<Cat> findDynamicallyCriteria(String name, Integer age) {
         CriteriaBuilder cb = em.getCriteriaBuilder();
         CriteriaQuery<Cat> cq = cb.createQuery(Cat.class);
         Root<Cat> cat = cq.from(Cat.class);
 
-        Join<Cat, Owner> owner = cat.join("owner");
-        cq.select(cat)
-                .where(cb.like(owner.get("name"), name + "%"));
+        List<Predicate> predicates = new ArrayList<>();
+
+        if (name != null) {
+            predicates.add(
+                    cb.like(
+                            cb.lower(cat.get("name")),
+                            name.toLowerCase() + "%"
+                    )
+            );
+        }
+
+        if (age != null) {
+            predicates.add(
+                    cb.greaterThan(cat.get("age"), age)
+            );
+        }
+
+        cq.select(cat).where(predicates.toArray(new Predicate[0]));
 
         return em.createQuery(cq).getResultList();
     }
 
-//    public List<Cat> findByOwnerNative(String name) {
-//        String sql = """
-//                    SELECT *
-//                    FROM cats c1
-//                    WHERE c1.id IN (
-//                        SELECT c.id
-//                        FROM cats c
-//                        JOIN owners o ON c.owner_id = o.id
-//                        WHERE o.name = LIKE :name
-//                    )
-//                """;
-//        TypedQuery<Cat> query = em.createNativeQuery(sql, Cat.class);
-//        return query.getResultList();
-//    }
+    @SuppressWarnings("unchecked")
+    public List<Cat> findDynamicallyNative(String name, Integer age) {
+        StringBuilder sql = new StringBuilder("SELECT * FROM cats WHERE 1=1");
 
-    public List<Cat> findByOwnerJooq(String name) {
-        String ownerTableName = Owner.class.getAnnotation(jakarta.persistence.Table.class).name();
+        if (name != null) {
+            sql.append(" AND LOWER(name) LIKE LOWER(:name)");
+        }
 
-        Table<Record> catTable = table(table);
-        Table<Record> ownerTable = table(ownerTableName);
+        if (age != null) {
+            sql.append(" AND age > :age");
+        }
 
-        Field<Long> catOwnerId = catTable.field("owner_id", Long.class);
-        Field<Long> ownerId = ownerTable.field("id", Long.class);
+        jakarta.persistence.Query query = em.createNativeQuery(sql.toString(), Cat.class);
 
-        return ctx.select(catTable.fields())
-                .from(catTable)
-                .join(ownerTable)
-                .on(catOwnerId.eq(ownerId))
-                .where(ownerTable.field("name").like(name + "%"))
-                .fetchInto(Cat.class);
+        if (name != null) {
+            query.setParameter("name", name + "%");
+        }
+
+        if (age != null) {
+            query.setParameter("age", age);
+        }
+
+        return query.getResultList();
     }
 
 
+    public List<Cat> findDynamicallyJOOQ(String name, Integer age) {
+        Condition condition = DSL.trueCondition();
+
+        if (name != null) {
+            condition = condition.and(
+                    DSL.lower(field("name", String.class)).like(name.toLowerCase() + "%")
+            );
+        }
+
+        if (age != null) {
+            condition = condition.and(
+                    field("age", Integer.class).gt(age)
+            );
+        }
+
+        return ctx
+                .selectFrom(CATS)
+                .where(condition)
+                .fetchInto(Cat.class);
+    }
 }

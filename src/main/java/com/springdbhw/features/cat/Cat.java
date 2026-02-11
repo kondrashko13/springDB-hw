@@ -34,20 +34,15 @@ import lombok.*;
 @NamedQuery(
         name = "Cat.countByBreed",
         query = """
-                    SELECT c.age, COUNT(c)
+                    SELECT c.breed, COUNT(c)
                     FROM Cat c
                     GROUP BY c.breed
                     ORDER BY c.breed
                 """
 )
 @NamedQuery(
-        name = "Cat.findByOwnerName",
-        query = """
-                    SELECT c
-                    FROM Cat c
-                    JOIN c.owner o
-                    WHERE o.name LIKE :ownerName
-                """
+        name = "Cat.findAllWithOwner",
+        query = "SELECT c FROM Cat c JOIN FETCH c.owner"
 )
 @Table(name = "cats")
 public class Cat {
@@ -72,6 +67,7 @@ public class Cat {
     private Breed breed = Breed.CUTE;
 
     @ManyToOne
+    @JoinColumn(name = "owner_id")
     private Owner owner;
 }
 
