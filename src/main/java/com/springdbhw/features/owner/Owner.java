@@ -1,4 +1,4 @@
-package com.springdbhw.features.cat;
+package com.springdbhw.features.owner;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
@@ -19,3 +19,4 @@ public class Owner {
     @NotBlank
     private String name;
 }
+

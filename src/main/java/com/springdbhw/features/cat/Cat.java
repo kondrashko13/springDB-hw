@@ -1,5 +1,6 @@
 package com.springdbhw.features.cat;
 
+import com.springdbhw.features.owner.Owner;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -12,38 +13,6 @@ import lombok.*;
 @Setter
 @Builder
 @Entity
-@NamedQuery(
-        name = "Cat.deleteDead",
-        query = "DELETE FROM Cat c WHERE c.alive = false"
-)
-@NamedQuery(
-        name = "Cat.upAgeIfAlive",
-        query = "UPDATE Cat c SET c.age = c.age + 1 WHERE c.alive = true"
-)
-@NamedQuery(
-        name = "Cat.findOlderThanAverage",
-        query = """
-                    SELECT c
-                    FROM Cat c
-                    WHERE c.age > (
-                        SELECT AVG(c2.age)
-                        FROM Cat c2
-                    )
-                """
-)
-@NamedQuery(
-        name = "Cat.countByBreed",
-        query = """
-                    SELECT c.breed, COUNT(c)
-                    FROM Cat c
-                    GROUP BY c.breed
-                    ORDER BY c.breed
-                """
-)
-@NamedQuery(
-        name = "Cat.findAllWithOwner",
-        query = "SELECT c FROM Cat c JOIN FETCH c.owner"
-)
 @Table(name = "cats")
 public class Cat {
     @Id
@@ -61,10 +30,6 @@ public class Cat {
     @NotNull
     @Builder.Default
     private boolean alive = true;
-
-    @NotNull
-    @Builder.Default
-    private Breed breed = Breed.CUTE;
 
     @ManyToOne
     @JoinColumn(name = "owner_id")
