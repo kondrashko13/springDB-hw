@@ -1,8 +1,6 @@
-package com.springdbhw.features.cat;
+package com.springdbhw.features.owner;
 
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -13,21 +11,15 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @Getter
 @Setter
 @Builder
-@Document(collection = "cats")
-public class Cat {
+@Document(collection = "owners")
+public class Owner {
     @Id
     private String id;
 
     @NotBlank
     @Indexed
-    private String name;
+    private String fullName;
 
-    @NotNull
-    @Min(0)
-    @Builder.Default
-    private int age = 0;
-
-    @Indexed
-    private String ownerId;
+    @Indexed(unique = true)
+    private String email;
 }
-

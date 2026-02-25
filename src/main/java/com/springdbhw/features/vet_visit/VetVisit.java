@@ -1,33 +1,41 @@
-package com.springdbhw.features.cat;
+package com.springdbhw.features.vet_visit;
 
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PastOrPresent;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
+
+import java.time.LocalDate;
 
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
 @Setter
 @Builder
-@Document(collection = "cats")
-public class Cat {
+@Document(collection = "vet_visits")
+public class VetVisit {
+
     @Id
     private String id;
 
     @NotBlank
     @Indexed
-    private String name;
+    private String catId;
 
     @NotNull
-    @Min(0)
+    @PastOrPresent
+    private LocalDate visitDate;
+
+    @NotBlank
     @Builder.Default
-    private int age = 0;
+    private String diagnosis = "Healthy";
 
-    @Indexed
-    private String ownerId;
+    @Builder.Default
+    private String prescribedTreatment = "";
+
+    @Builder.Default
+    private double cost = 0.0;
 }
-
