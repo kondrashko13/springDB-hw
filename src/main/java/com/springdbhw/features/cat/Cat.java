@@ -1,6 +1,5 @@
 package com.springdbhw.features.cat;
 
-import com.springdbhw.features.owner.Owner;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -30,9 +29,5 @@ public class Cat {
     @NotNull
     @Builder.Default
     private boolean alive = true;
-
-    @ManyToOne
-    @JoinColumn(name = "owner_id")
-    private Owner owner;
 }
 
