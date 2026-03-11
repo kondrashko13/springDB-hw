@@ -1,33 +1,22 @@
 package com.springdbhw.features.cat;
 
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.Indexed;
-import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.redis.core.RedisHash;
 
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
 @Setter
 @Builder
-@Document(collection = "cats")
+@RedisHash("cats")
 public class Cat {
     @Id
     private String id;
 
-    @NotBlank
-    @Indexed
     private String name;
 
-    @NotNull
-    @Min(0)
     @Builder.Default
     private int age = 0;
-
-    @Indexed
-    private String ownerId;
 }
 
